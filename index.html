@@ -14,56 +14,83 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        // スマホ画面に合わせたサイズ設定
-        const size = Math.min(window.innerWidth, window.innerHeight) * 0.9;
-        canvas.width = size;
-        canvas.height = size;
+        // --- 設定とデータ ---
+const tileSize = size / 10; // 10x10のグリッド
+const level = [
+    [1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,0,1,1,1,0,1],
+    [1,0,1,0,0,0,0,1,0,1],
+    [1,0,1,0,1,1,0,1,0,1],
+    [1,0,0,0,1,2,0,0,0,1], // 2がゴール
+    [1,1,1,0,1,1,1,1,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1]
+];
 
-        let ball = { x: size/2, y: size/2, vx: 0, vy: 0, radius: 10 };
-        let gravity = { x: 0, y: 0.5 }; // 初期重力は下向き
-        let isMoving = false;
+// --- 衝突判定関数 ---
+function checkCollision() {
+    // 座標から現在のタイル位置を計算
+    let gridX = Math.floor(ball.x / tileSize);
+    let gridY = Math.floor(ball.y / tileSize);
 
-        function update() {
-            ball.vx += gravity.x;
-            ball.vy += gravity.y;
-            ball.x += ball.vx;
-            ball.y += ball.vy;
+    const tile = level[gridY][gridX];
 
-            // 壁の衝突判定（簡易版）
-            if (ball.x < ball.radius) { ball.x = ball.radius; ball.vx = 0; }
-            if (ball.x > size - ball.radius) { ball.x = size - ball.radius; ball.vx = 0; }
-            if (ball.y < ball.radius) { ball.y = ball.radius; ball.vy = 0; }
-            if (ball.y > size - ball.radius) { ball.y = size - ball.radius; ball.vy = 0; }
+    if (tile === 1) { // 壁にめり込んだら押し戻す
+        ball.x -= ball.vx;
+        ball.y -= ball.vy;
+        ball.vx = 0;
+        ball.vy = 0;
+    } else if (tile === 2) { // ゴール
+        alert("GOAL! おめでとう！");
+        resetGame();
+    }
+}
 
-            draw();
-            requestAnimationFrame(update);
-        }
+function resetGame() {
+    ball.x = tileSize * 1.5;
+    ball.y = tileSize * 1.5;
+    ball.vx = 0; ball.vy = 0;
+    gravity = {x:0, y:0.5};
+}
 
-        function draw() {
-            ctx.clearRect(0, 0, size, size);
-            ctx.fillStyle = '#0f0'; // ボールは緑色
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2);
-            ctx.fill();
-        }
+// --- 描画関数 ---
+function draw() {
+    ctx.clearRect(0, 0, size, size);
 
-        // スワイプ検知の実装
-        let tsX, tsY;
-        window.addEventListener('touchstart', e => { tsX = e.touches[0].clientX; tsY = e.touches[0].clientY; });
-        window.addEventListener('touchend', e => {
-            let dx = e.changedTouches[0].clientX - tsX;
-            let dy = e.changedTouches[0].clientY - tsY;
-            if (Math.abs(dx) > Math.abs(dy)) {
-                gravity = { x: dx > 0 ? 0.5 : -0.5, y: 0 };
-            } else {
-                gravity = { x: 0, y: dy > 0 ? 0.5 : -0.5 };
+    // タイルの描画
+    for (let y = 0; y < level.length; y++) {
+        for (let x = 0; x < level[y].length; x++) {
+            if (level[y][x] === 1) {
+                ctx.fillStyle = "#555"; // 壁
+                ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+            } else if (level[y][x] === 2) {
+                ctx.fillStyle = "#ff0"; // ゴール（黄）
+                ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
             }
-        });
+        }
+    }
 
-        update();
+    // ボールの描画
+    ctx.fillStyle = '#0f0';
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2);
+    ctx.fill();
+}
+
+// update関数の中で checkCollision() を呼び出すように変更してください
+function update() {
+    ball.vx += gravity.x;
+    ball.vy += gravity.y;
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    checkCollision(); // 当たり判定
+
+    draw();
+    requestAnimationFrame(update);
+}
+
     </script>
 </body>
 </html>
