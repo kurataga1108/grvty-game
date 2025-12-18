@@ -26,11 +26,14 @@
         #ui { 
             margin-bottom: 10px; 
             text-align: center; 
+            font-weight: bold;
+            font-size: 1.2rem;
         }
         .instructions {
             margin-top: 10px;
             font-size: 0.8rem;
             color: #888;
+            text-align: center;
         }
     </style>
 </head>
@@ -42,7 +45,7 @@
 
     <canvas id="gameCanvas"></canvas>
 
-    <div class="instructions">SWIPE TO CHANGE GRAVITY<br><span style="color: #ff4444;">AVOID RED SPIKES</span></div>
+    <div class="instructions">SWIPE TO FALL<br><span style="color: #ff4444;">RED = RESET</span> / <span style="color: #FFD700;">GOLD = GOAL</span></div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -55,7 +58,50 @@
         const gridCount = 10; 
         const tileSize = screenSize / gridCount;
 
-        // ゲームの状態
+        // ステージデータ群 (0:空間, 1:壁, 2:ゴール, 3:トゲ)
+        const levels = [
+            // Stage 1: 基本操作
+            [
+                [1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,0,0,1,0,0,0,1],
+                [1,0,1,1,0,1,0,1,0,1],
+                [1,0,0,0,0,0,0,1,0,1],
+                [1,1,1,1,1,1,0,3,0,1],
+                [1,0,0,0,0,0,0,0,0,1],
+                [1,0,1,1,1,3,1,1,1,1],
+                [1,0,1,0,0,0,0,0,2,1],
+                [1,0,0,0,1,1,1,1,0,1],
+                [1,1,1,1,1,1,1,1,1,1]
+            ],
+            // Stage 2: トゲの迷路
+            [
+                [1,1,1,1,1,1,1,1,1,1],
+                [1,0,3,0,0,0,0,3,0,1],
+                [1,0,1,0,1,1,0,1,0,1],
+                [1,0,0,0,3,0,0,0,0,1],
+                [1,1,3,1,1,1,1,3,1,1],
+                [1,0,0,0,0,0,0,0,0,1],
+                [1,0,1,3,1,1,3,1,0,1],
+                [1,2,1,0,0,0,0,1,0,1],
+                [1,0,0,0,1,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1]
+            ],
+            // Stage 3: 精密な操作
+            [
+                [1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,0,0,0,0,0,0,1],
+                [1,0,1,1,1,1,1,1,3,1],
+                [1,0,1,0,0,0,0,0,0,1],
+                [1,0,1,0,1,1,1,1,1,1],
+                [1,0,1,0,3,0,0,0,0,1],
+                [1,0,1,0,1,1,1,1,0,1],
+                [1,0,0,0,1,2,0,0,0,1],
+                [1,0,3,0,1,1,1,1,1,1],
+                [1,1,1,1,1,1,1,1,1,1]
+            ]
+        ];
+
+        let currentStage = 0;
         let gravity = { x: 0, y: 0.5 };
         let ball = { 
             x: tileSize * 1.5, 
@@ -64,20 +110,6 @@
             vy: 0, 
             radius: tileSize * 0.3 
         };
-
-        // ステージデータ (0:空間, 1:壁, 2:ゴール, 3:トゲ)
-        const level = [
-            [1,1,1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,1,0,0,0,1],
-            [1,0,1,1,0,1,0,1,0,1],
-            [1,0,0,3,0,0,0,1,0,1],
-            [1,1,1,1,1,1,0,3,0,1],
-            [1,0,0,0,0,0,0,0,0,1],
-            [1,0,1,1,1,3,1,1,1,1],
-            [1,0,1,0,0,0,0,0,2,1],
-            [1,0,0,0,1,1,1,1,0,1],
-            [1,1,1,1,1,1,1,1,1,1]
-        ];
 
         let tsX, tsY;
 
@@ -98,22 +130,29 @@
 
             if (gy < 0 || gy >= gridCount || gx < 0 || gx >= gridCount) return;
 
+            const level = levels[currentStage];
             const currentTile = level[gy][gx];
 
             if (currentTile === 1) {
-                // 壁衝突
                 ball.x -= ball.vx;
                 ball.y -= ball.vy;
                 ball.vx = 0;
                 ball.vy = 0;
             } else if (currentTile === 2) {
-                // ゴール
-                alert("STAGE CLEAR!");
-                resetBall();
+                nextLevel();
             } else if (currentTile === 3) {
-                // トゲ衝突（ミス）
                 resetBall();
             }
+        }
+
+        function nextLevel() {
+            currentStage++;
+            if (currentStage >= levels.length) {
+                alert("CONGRATULATIONS! ALL STAGES CLEAR!");
+                currentStage = 0;
+            }
+            document.getElementById('status').innerText = `STAGE ${currentStage + 1}`;
+            resetBall();
         }
 
         function resetBall() {
@@ -126,6 +165,7 @@
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const level = levels[currentStage];
 
             for (let y = 0; y < gridCount; y++) {
                 for (let x = 0; x < gridCount; x++) {
@@ -139,7 +179,6 @@
                         ctx.fillStyle = "#FFD700";
                         ctx.fillRect(tx, ty, tileSize, tileSize);
                     } else if (level[y][x] === 3) {
-                        // トゲ（赤い三角形）の描画
                         ctx.fillStyle = "#ff4444";
                         ctx.beginPath();
                         ctx.moveTo(tx + tileSize/2, ty + 5);
@@ -151,7 +190,6 @@
                 }
             }
 
-            // ボールの描画
             ctx.fillStyle = '#00FF41';
             ctx.beginPath();
             ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
