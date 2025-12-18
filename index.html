@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GRVTY - Prototype</title>
+    <style>
+        body { margin: 0; background: #222; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 100vh; color: white; font-family: sans-serif; }
+        canvas { background: #000; border: 2px solid #555; }
+        #ui { position: absolute; top: 10px; text-align: center; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="ui">SWIPE TO CHANGE GRAVITY</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // スマホ画面に合わせたサイズ設定
+        const size = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+        canvas.width = size;
+        canvas.height = size;
+
+        let ball = { x: size/2, y: size/2, vx: 0, vy: 0, radius: 10 };
+        let gravity = { x: 0, y: 0.5 }; // 初期重力は下向き
+        let isMoving = false;
+
+        function update() {
+            ball.vx += gravity.x;
+            ball.vy += gravity.y;
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+
+            // 壁の衝突判定（簡易版）
+            if (ball.x < ball.radius) { ball.x = ball.radius; ball.vx = 0; }
+            if (ball.x > size - ball.radius) { ball.x = size - ball.radius; ball.vx = 0; }
+            if (ball.y < ball.radius) { ball.y = ball.radius; ball.vy = 0; }
+            if (ball.y > size - ball.radius) { ball.y = size - ball.radius; ball.vy = 0; }
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, size, size);
+            ctx.fillStyle = '#0f0'; // ボールは緑色
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        // スワイプ検知の実装
+        let tsX, tsY;
+        window.addEventListener('touchstart', e => { tsX = e.touches[0].clientX; tsY = e.touches[0].clientY; });
+        window.addEventListener('touchend', e => {
+            let dx = e.changedTouches[0].clientX - tsX;
+            let dy = e.changedTouches[0].clientY - tsY;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                gravity = { x: dx > 0 ? 0.5 : -0.5, y: 0 };
+            } else {
+                gravity = { x: 0, y: dy > 0 ? 0.5 : -0.5 };
+            }
+        });
+
+        update();
+    </script>
+</body>
+</html>
