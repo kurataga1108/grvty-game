@@ -3,36 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GRVTY - Gravity Puzzle</title>
+    <title>GitHub GRVTY - Contribution Puzzle</title>
     <style>
+        :root {
+            --bg-color: #ffffff;
+            --wall-color: #216e39; /* 濃い緑（GitHubの草） */
+            --ball-color: #24292f; /* GitHubロゴの黒 */
+            --goal-color: #39d353; /* 明るい緑 */
+            --spike-color: #cf222e; /* 警告の赤 */
+            --text-color: #24292f;
+        }
         body { 
             margin: 0; 
-            background: #222; 
+            background: var(--bg-color); 
             overflow: hidden; 
             display: flex; 
             flex-direction: column;
             align-items: center; 
             justify-content: center; 
             height: 100vh; 
-            color: white; 
-            font-family: 'Courier New', Courier, monospace; 
+            color: var(--text-color); 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
         }
         canvas { 
-            background: #000; 
-            border: 4px solid #444; 
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background: #ebedf0; /* 薄いグレーの背景 */
+            border: 1px solid #d0d7de; 
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
             touch-action: none; 
         }
         #ui { 
-            margin-bottom: 10px; 
+            margin-bottom: 16px; 
             text-align: center; 
-            font-weight: bold;
-            font-size: 1.2rem;
+        }
+        .stage-label {
+            font-size: 1.5rem;
+            font-weight: 600;
         }
         .instructions {
-            margin-top: 10px;
-            font-size: 0.8rem;
-            color: #888;
+            margin-top: 16px;
+            font-size: 0.9rem;
+            color: #57606a;
+            line-height: 1.5;
             text-align: center;
         }
     </style>
@@ -40,75 +52,79 @@
 <body>
 
     <div id="ui">
-        <div id="status">STAGE 1</div>
+        <div class="stage-label" id="status">STAGE 1</div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
 
-    <div class="instructions">SWIPE TO FALL<br><span style="color: #ff4444;">RED = RESET</span> / <span style="color: #FFD700;">GOLD = GOAL</span></div>
+    <div class="instructions">
+        Swipe to Commit (Move)<br>
+        <span style="color: var(--goal-color); font-weight: bold;">Green = Goal</span> / 
+        <span style="color: var(--spike-color); font-weight: bold;">Red = Bug</span>
+    </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        const screenSize = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+        const screenSize = Math.min(window.innerWidth, window.innerHeight) * 0.85;
         canvas.width = screenSize;
         canvas.height = screenSize;
 
         const gridCount = 10; 
         const tileSize = screenSize / gridCount;
 
-        // ステージデータ群 (0:空間, 1:壁, 2:ゴール, 3:トゲ)
+        // ステージデータ (0:空間, 1:壁, 2:ゴール, 3:トゲ)
         const levels = [
-            // Stage 1: 基本操作
-            [
-                [1,1,1,1,1,1,1,1,1,1],
-                [1,0,0,0,0,1,0,0,0,1],
-                [1,0,1,1,0,1,0,1,0,1],
-                [1,0,0,0,0,0,0,1,0,1],
-                [1,1,1,1,1,1,0,3,0,1],
-                [1,0,0,0,0,0,0,0,0,1],
-                [1,0,1,1,1,3,1,1,1,1],
-                [1,0,1,0,0,0,0,0,2,1],
-                [1,0,0,0,1,1,1,1,0,1],
-                [1,1,1,1,1,1,1,1,1,1]
-            ],
-            // Stage 2: トゲの迷路
-            [
-                [1,1,1,1,1,1,1,1,1,1],
-                [1,0,3,0,0,0,0,3,0,1],
-                [1,0,1,0,1,1,0,1,0,1],
-                [1,0,0,0,3,0,0,0,0,1],
-                [1,1,3,1,1,1,1,3,1,1],
-                [1,0,0,0,0,0,0,0,0,1],
-                [1,0,1,3,1,1,3,1,0,1],
-                [1,2,1,0,0,0,0,1,0,1],
-                [1,0,0,0,1,0,0,0,0,1],
-                [1,1,1,1,1,1,1,1,1,1]
-            ],
-            // Stage 3: 精密な操作
+            // Stage 1: ウォームアップ（詰まらない配置）
             [
                 [1,1,1,1,1,1,1,1,1,1],
                 [1,0,0,0,0,0,0,0,0,1],
-                [1,0,1,1,1,1,1,1,3,1],
+                [1,0,1,1,1,1,1,1,0,1],
                 [1,0,1,0,0,0,0,0,0,1],
                 [1,0,1,0,1,1,1,1,1,1],
-                [1,0,1,0,3,0,0,0,0,1],
-                [1,0,1,0,1,1,1,1,0,1],
+                [1,0,0,0,3,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,0,1],
+                [1,2,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1],
+                [1,1,1,1,1,1,1,1,1,1]
+            ],
+            // Stage 2: 少し複雑なルート
+            [
+                [1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,0,0,3,0,0,0,1],
+                [1,0,1,1,0,1,1,1,0,1],
+                [1,0,1,0,0,0,0,1,0,1],
+                [1,0,1,3,1,1,0,1,3,1],
                 [1,0,0,0,1,2,0,0,0,1],
-                [1,0,3,0,1,1,1,1,1,1],
+                [1,1,1,0,1,1,1,1,0,1],
+                [1,0,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1],
+                [1,1,1,1,1,1,1,1,1,1]
+            ],
+            // Stage 3: 慎重なスワイプが必要
+            [
+                [1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,0,1,0,0,0,0,1],
+                [1,3,1,0,1,0,1,1,0,1],
+                [1,0,1,0,0,0,1,0,0,1],
+                [1,0,1,1,1,3,1,0,1,1],
+                [1,0,0,0,0,0,0,0,0,1],
+                [1,1,1,3,1,1,1,1,0,1],
+                [1,2,0,0,0,0,3,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1],
                 [1,1,1,1,1,1,1,1,1,1]
             ]
         ];
 
         let currentStage = 0;
-        let gravity = { x: 0, y: 0.5 };
+        let gravity = { x: 0, y: 0.6 };
         let ball = { 
             x: tileSize * 1.5, 
             y: tileSize * 1.5, 
             vx: 0, 
             vy: 0, 
-            radius: tileSize * 0.3 
+            radius: tileSize * 0.25 // 少し小さくして通りやすくした
         };
 
         let tsX, tsY;
@@ -148,7 +164,7 @@
         function nextLevel() {
             currentStage++;
             if (currentStage >= levels.length) {
-                alert("CONGRATULATIONS! ALL STAGES CLEAR!");
+                alert("ALL CONTRIBUTIONS MERGED!");
                 currentStage = 0;
             }
             document.getElementById('status').innerText = `STAGE ${currentStage + 1}`;
@@ -160,7 +176,7 @@
             ball.y = tileSize * 1.5;
             ball.vx = 0;
             ball.vy = 0;
-            gravity = { x: 0, y: 0.5 };
+            gravity = { x: 0, y: 0.6 };
         }
 
         function draw() {
@@ -173,30 +189,25 @@
                     let ty = y * tileSize;
 
                     if (level[y][x] === 1) {
-                        ctx.fillStyle = "#555";
-                        ctx.fillRect(tx, ty, tileSize, tileSize);
+                        ctx.fillStyle = "#216e39"; // 壁（草）
+                        ctx.fillRect(tx + 1, ty + 1, tileSize - 2, tileSize - 2);
                     } else if (level[y][x] === 2) {
-                        ctx.fillStyle = "#FFD700";
-                        ctx.fillRect(tx, ty, tileSize, tileSize);
+                        ctx.fillStyle = "#39d353"; // ゴール
+                        ctx.fillRect(tx + 1, ty + 1, tileSize - 2, tileSize - 2);
                     } else if (level[y][x] === 3) {
-                        ctx.fillStyle = "#ff4444";
+                        ctx.fillStyle = "#cf222e"; // バグ（トゲ）
                         ctx.beginPath();
-                        ctx.moveTo(tx + tileSize/2, ty + 5);
-                        ctx.lineTo(tx + 5, ty + tileSize - 5);
-                        ctx.lineTo(tx + tileSize - 5, ty + tileSize - 5);
-                        ctx.closePath();
+                        ctx.arc(tx + tileSize/2, ty + tileSize/2, tileSize/4, 0, Math.PI*2);
                         ctx.fill();
                     }
                 }
             }
 
-            ctx.fillStyle = '#00FF41';
+            // ボールの描画（GitHubロゴ風の黒）
+            ctx.fillStyle = '#24292f';
             ctx.beginPath();
             ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = "white";
-            ctx.lineWidth = 2;
-            ctx.stroke();
         }
 
         window.addEventListener('touchstart', e => {
@@ -211,9 +222,9 @@
             if (Math.abs(dx) < 15 && Math.abs(dy) < 15) return;
 
             if (Math.abs(dx) > Math.abs(dy)) {
-                gravity = { x: dx > 0 ? 0.6 : -0.6, y: 0 };
+                gravity = { x: dx > 0 ? 0.7 : -0.7, y: 0 };
             } else {
-                gravity = { x: 0, y: dy > 0 ? 0.6 : -0.6 };
+                gravity = { x: 0, y: dy > 0 ? 0.7 : -0.7 };
             }
         }, { passive: false });
 
