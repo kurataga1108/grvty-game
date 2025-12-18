@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PUYO MERGE - Evolution</title>
+    <title>PUYO MERGE - Visual Edition</title>
     <style>
         :root { --bg: #f6f8fa; --text: #24292f; }
         body { margin: 0; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: var(--text); }
@@ -19,7 +19,7 @@
 
     <div id="menu">
         <h1 style="color:#216e39; font-size: 2.5rem;">PUYO MERGE</h1>
-        <p>消すほど色が増えて難解に！</p>
+        <p>連鎖でバブルを弾けさせよう！</p>
         <button onclick="startGame()">START GAME</button>
     </div>
 
@@ -50,22 +50,24 @@
         const TILE = Math.min(window.innerWidth * 0.8 / COLS, 45);
         canvas.width = TILE * COLS; canvas.height = TILE * ROWS;
 
-        // 最大7色までの定義
         const ALL_COLORS = [
-            { main: '#39d353', dark: '#216e39' }, // 緑 (初期)
-            { main: '#388bfd', dark: '#033d8b' }, // 青 (初期)
-            { main: '#f85149', dark: '#8e1519' }, // 赤 (初期)
-            { main: '#f1e05a', dark: '#b08800' }, // 黄 (初期)
-            { main: '#a371f7', dark: '#5a32a3' }, // 紫 (10個以上)
-            { main: '#ff9bce', dark: '#b34d80' }, // 桃 (30個以上)
-            { main: '#6e7681', dark: '#24292f' }  // 灰 (60個以上)
+            { main: '#39d353', dark: '#216e39' }, 
+            { main: '#388bfd', dark: '#033d8b' }, 
+            { main: '#f85149', dark: '#8e1519' }, 
+            { main: '#f1e05a', dark: '#b08800' }, 
+            { main: '#a371f7', dark: '#5a32a3' }, 
+            { main: '#ff9bce', dark: '#b34d80' }, 
+            { main: '#6e7681', dark: '#24292f' }
         ];
 
         let board = [], currentPuyo = null, score = 0, totalCleared = 0, isProcessing = false;
+        let particles = [];
+        let explodingBricks = []; // 現在消去演出中の座標
 
         function initBoard() {
             board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
             score = 0; totalCleared = 0;
+            particles = []; explodingBricks = [];
             updateUI();
         }
 
@@ -75,7 +77,6 @@
             document.getElementById('color-count').innerText = getCurrentColorLimit();
         }
 
-        // 消した数に応じて色数を決める (4〜7)
         function getCurrentColorLimit() {
             if (totalCleared >= 60) return 7;
             if (totalCleared >= 30) return 6;
@@ -113,10 +114,9 @@
         function canMove(nx, ny, nRot) {
             const dummy = new PuyoPair();
             dummy.x = nx; dummy.y = ny; dummy.rot = nRot;
-            const positions = dummy.getPos();
-            return positions.every(p => 
+            return dummy.getPos().every(p => 
                 p.x >= 0 && p.x < COLS && p.y >= 0 && p.y < ROWS &&
-                (p.y < 0 || board[p.y][p.x] === null) // ブロックがある場所には動けない
+                (p.y < 0 || board[p.y][p.x] === null)
             );
         }
 
@@ -127,12 +127,9 @@
             } else {
                 isProcessing = true;
                 const pos = currentPuyo.getPos();
-                
-                // 画面外（最上段）で詰まったらゲームオーバー
                 if (pos.some(p => p.y < 0 || board[Math.max(0, p.y)][p.x] !== null)) {
                     gameOver(); return;
                 }
-
                 pos.forEach(p => board[p.y][p.x] = p.c);
                 currentPuyo = null;
                 await processChains();
@@ -145,9 +142,8 @@
             let chain = 0;
             while (true) {
                 let dropped = false;
-                // 重力処理
                 while (applyGravity()) { dropped = true; }
-                if (dropped) await new Promise(r => setTimeout(r, 200));
+                if (dropped) await new Promise(r => setTimeout(r, 150));
                 
                 const matches = findMatches();
                 if (matches.length === 0) break;
@@ -155,11 +151,35 @@
                 chain++;
                 totalCleared += matches.length;
                 score += matches.length * 10 * chain;
+                
+                // キャー！顔の演出用
+                explodingBricks = matches;
+                await new Promise(r => setTimeout(r, 300));
+                
+                // 弾ける演出
+                matches.forEach(p => {
+                    createPopEffect(p.x, p.y, board[p.y][p.x]);
+                    board[p.y][p.x] = null;
+                });
+                explodingBricks = [];
                 updateUI();
                 showChainMsg(chain);
-                
-                matches.forEach(p => board[p.y][p.x] = null);
-                await new Promise(r => setTimeout(r, 300));
+                await new Promise(r => setTimeout(r, 200));
+            }
+        }
+
+        function createPopEffect(gx, gy, colorIdx) {
+            const color = ALL_COLORS[colorIdx].main;
+            for (let i = 0; i < 8; i++) {
+                particles.push({
+                    x: gx * TILE + TILE / 2,
+                    y: gy * TILE + TILE / 2,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    radius: Math.random() * 6 + 2,
+                    life: 1,
+                    color: color
+                });
             }
         }
 
@@ -168,8 +188,7 @@
             for (let x = 0; x < COLS; x++) {
                 for (let y = ROWS - 1; y > 0; y--) {
                     if (board[y][x] === null && board[y-1][x] !== null) {
-                        board[y][x] = board[y-1][x];
-                        board[y-1][x] = null;
+                        board[y][x] = board[y-1][x]; board[y-1][x] = null;
                         changed = true;
                     }
                 }
@@ -183,9 +202,7 @@
             for (let y = 0; y < ROWS; y++) {
                 for (let x = 0; x < COLS; x++) {
                     if (board[y][x] !== null && !visited[y][x]) {
-                        let group = [];
-                        let color = board[y][x];
-                        let q = [{x, y}];
+                        let group = [], color = board[y][x], q = [{x, y}];
                         visited[y][x] = true;
                         while(q.length > 0) {
                             let p = q.shift(); group.push(p);
@@ -203,7 +220,7 @@
             return matched;
         }
 
-        function drawPuyo(x, y, colorIdx) {
+        function drawPuyo(x, y, colorIdx, isExploding = false) {
             if (y < 0) return;
             const cx = x * TILE + TILE/2, cy = y * TILE + TILE/2;
             const r = TILE * 0.45;
@@ -214,13 +231,50 @@
             ctx.roundRect(x * TILE + 2, y * TILE + 2, TILE - 4, TILE - 4, 10);
             ctx.fill();
 
-            // 目の描画
-            ctx.fillStyle = "white";
-            ctx.beginPath(); ctx.arc(cx - 6, cy - 4, 5, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(cx + 6, cy - 4, 5, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "black";
-            ctx.beginPath(); ctx.arc(cx - 6, cy - 4, 2, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(cx + 6, cy - 4, 2, 0, Math.PI*2); ctx.fill();
+            if (isExploding) {
+                // 「キャー！」な目 (＞ ＜)
+                ctx.strokeStyle = "white"; ctx.lineWidth = 3; ctx.lineCap = "round";
+                // 左目
+                ctx.beginPath(); ctx.moveTo(cx - 10, cy - 8); ctx.lineTo(cx - 4, cy - 4); ctx.lineTo(cx - 10, cy); ctx.stroke();
+                // 右目
+                ctx.beginPath(); ctx.moveTo(cx + 10, cy - 8); ctx.lineTo(cx + 4, cy - 4); ctx.lineTo(cx + 10, cy); ctx.stroke();
+            } else {
+                // 通常の目
+                ctx.fillStyle = "white";
+                ctx.beginPath(); ctx.arc(cx - 6, cy - 4, 5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 6, cy - 4, 5, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "black";
+                ctx.beginPath(); ctx.arc(cx - 6, cy - 4, 2, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 6, cy - 4, 2, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        function updateParticles() {
+            particles.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+                if (p.life <= 0) particles.splice(i, 1);
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    if (board[y][x] !== null) {
+                        const isExp = explodingBricks.some(eb => eb.x === x && eb.y === y);
+                        drawPuyo(x, y, board[y][x], isExp);
+                    }
+                }
+            }
+            if (currentPuyo) {
+                currentPuyo.getPos().forEach(p => drawPuyo(p.x, p.y, p.c));
+            }
+            // パーティクル描画
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
         }
 
         function showChainMsg(n) {
@@ -235,19 +289,6 @@
             currentPuyo = null;
         }
 
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            for (let y = 0; y < ROWS; y++) {
-                for (let x = 0; x < COLS; x++) {
-                    if (board[y][x] !== null) drawPuyo(x, y, board[y][x]);
-                }
-            }
-            if (currentPuyo) {
-                currentPuyo.getPos().forEach(p => drawPuyo(p.x, p.y, p.c));
-            }
-        }
-
-        // 入力制御 (PC)
         window.addEventListener('keydown', e => {
             if (!currentPuyo || isProcessing) return;
             if (e.key === 'ArrowLeft' && canMove(currentPuyo.x-1, currentPuyo.y, currentPuyo.rot)) currentPuyo.x--;
@@ -259,24 +300,23 @@
             }
         });
 
-        // スマホ操作
         let tsX, tsY;
         canvas.addEventListener('touchstart', e => { tsX = e.touches[0].clientX; tsY = e.touches[0].clientY; e.preventDefault(); }, {passive: false});
         canvas.addEventListener('touchend', e => {
+            if (!currentPuyo || isProcessing) return;
             let dx = e.changedTouches[0].clientX - tsX, dy = e.changedTouches[0].clientY - tsY;
             if (Math.abs(dx) < 15 && Math.abs(dy) < 15) {
-                let nextRot = (currentPuyo.rot + 1) % 4;
-                if (canMove(currentPuyo.x, currentPuyo.y, nextRot)) currentPuyo.rot = nextRot;
+                let nRot = (currentPuyo.rot + 1) % 4; if (canMove(currentPuyo.x, currentPuyo.y, nRot)) currentPuyo.rot = nRot;
             } else if (Math.abs(dx) > Math.abs(dy)) {
                 if (dx > 20 && canMove(currentPuyo.x+1, currentPuyo.y, currentPuyo.rot)) currentPuyo.x++;
                 else if (dx < -20 && canMove(currentPuyo.x-1, currentPuyo.y, currentPuyo.rot)) currentPuyo.x--;
-            } else if (dy > 20) { handleDrop(); }
+            } else if (dy > 20) handleDrop();
         });
 
         let lastDrop = 0;
         function gameLoop(time = 0) {
-            if (!currentPuyo && !isProcessing) return;
             if (time - lastDrop > 800) { handleDrop(); lastDrop = time; }
+            updateParticles();
             draw();
             requestAnimationFrame(gameLoop);
         }
