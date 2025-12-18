@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GitHub GRVTY - Master</title>
+    <title>GitHub GRVTY - Professional Edition</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -11,232 +11,188 @@
             --ball-color: #24292f;
             --goal-color: #39d353;
             --spike-color: #cf222e;
-            --text-color: #24292f;
+            --btn-color: #21262d;
+            --btn-text: #ffffff;
         }
         body { 
-            margin: 0; 
-            background: var(--bg-color); 
-            overflow: hidden; 
-            display: flex; 
-            flex-direction: column;
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh; 
-            color: var(--text-color); 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
+            margin: 0; background: var(--bg-color); overflow: hidden; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; color: #24292f; font-family: -apple-system, sans-serif; 
         }
-        canvas { 
-            background: #f6f8fa; 
-            border: 1px solid #d0d7de; 
-            border-radius: 6px;
-            touch-action: none; 
+        #menu, #clear-screen {
+            position: absolute; width: 100%; height: 100%; background: rgba(255,255,255,0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10;
         }
-        #ui { margin-bottom: 16px; text-align: center; }
-        .stage-label { font-size: 1.5rem; font-weight: 600; }
-        #move-status { font-weight: bold; margin-top: 4px; display: block; }
-        .instructions {
-            margin-top: 16px;
-            font-size: 0.85rem;
-            color: #57606a;
-            text-align: center;
+        .hidden { display: none !important; }
+        canvas { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; touch-action: none; }
+        h1 { margin-bottom: 20px; font-size: 2rem; }
+        select, button {
+            padding: 12px 24px; font-size: 1rem; border-radius: 6px; border: 1px solid #d0d7de;
+            margin: 10px; cursor: pointer; background: var(--btn-color); color: var(--btn-text);
         }
+        button:active { opacity: 0.8; }
+        #ui-bar { width: 85%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        #reset-btn { background: #f6f8fa; color: #cf222e; border: 1px solid #d0d7de; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div id="ui">
-        <div class="stage-label" id="status">STAGE 1</div>
-        <span id="move-status" style="color: #0969da;">READY</span>
+    <div id="menu">
+        <h1>GitHub GRVTY</h1>
+        <label for="stage-select">Select Stage:</label>
+        <select id="stage-select">
+            <option value="0">STAGE 1</option>
+            <option value="1">STAGE 2</option>
+            <option value="2">STAGE 3</option>
+        </select>
+        <button onclick="startGame()">START GAME</button>
+    </div>
+
+    <div id="clear-screen" class="hidden">
+        <h1 style="color: var(--wall-color);">STAGE CLEAR!</h1>
+        <button onclick="nextLevel()">NEXT STAGE</button>
+        <button onclick="backToMenu()" style="background: #f6f8fa; color: #24292f;">BACK TO MENU</button>
+    </div>
+
+    <div id="ui-bar">
+        <div id="status" style="font-weight: bold; font-size: 1.2rem;">STAGE 1</div>
+        <button id="reset-btn" onclick="resetBall()">RESET</button>
     </div>
 
     <canvas id="gameCanvas"></canvas>
 
-    <div class="instructions">
-        Swipe to Move. Can't change while moving.<br>
-        <span style="color: var(--goal-color); font-weight: bold;">Green = Merge (Goal)</span>
-    </div>
-
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        
-        const screenSize = Math.min(window.innerWidth, window.innerHeight) * 0.85;
-        canvas.width = screenSize;
-        canvas.height = screenSize;
-
-        const gridCount = 10; 
+        const screenSize = Math.min(window.innerWidth, window.innerHeight) * 0.8;
+        canvas.width = screenSize; canvas.height = screenSize;
+        const gridCount = 10;
         const tileSize = screenSize / gridCount;
-
-        // 0:空, 1:壁, 2:ゴール, 3:トゲ
-        const levels = [
-            // Stage 1: 直線移動の練習
-            [
-                [1,1,1,1,1,1,1,1,1,1],
-                [1,0,0,0,0,0,0,0,0,1],
-                [1,0,1,1,1,1,1,1,0,1],
-                [1,0,1,0,0,0,0,0,0,1],
-                [1,0,1,0,1,1,1,1,1,1],
-                [1,0,0,0,0,0,0,0,0,1],
-                [1,1,1,1,1,1,1,1,0,1],
-                [1,2,0,0,0,0,0,0,0,1],
-                [1,1,1,1,1,1,1,1,1,1],
-                [1,1,1,1,1,1,1,1,1,1]
-            ],
-            // Stage 2: トゲを避けるタイミング
-            [
-                [1,1,1,1,1,1,1,1,1,1],
-                [1,0,0,0,0,0,0,0,0,1],
-                [1,1,1,1,0,1,1,1,0,1],
-                [1,0,0,3,0,1,2,1,0,1],
-                [1,0,1,1,1,1,0,1,0,1],
-                [1,0,0,0,0,0,0,0,0,1],
-                [1,1,1,0,1,1,1,1,1,1],
-                [1,0,0,0,0,0,0,0,0,1],
-                [1,1,1,1,1,1,1,1,1,1],
-                [1,1,1,1,1,1,1,1,1,1]
-            ],
-            // Stage 3: 逆走パズル
-            [
-                [1,1,1,1,1,1,1,1,1,1],
-                [1,0,0,0,0,0,0,0,0,1],
-                [1,0,1,1,1,1,1,1,0,1],
-                [1,0,0,0,3,2,1,1,0,1],
-                [1,1,1,0,1,1,1,1,0,1],
-                [1,0,0,0,0,0,0,0,0,1],
-                [1,0,1,1,1,1,1,1,1,1],
-                [1,0,0,0,0,0,0,0,0,1],
-                [1,1,1,1,1,1,1,1,1,1],
-                [1,1,1,1,1,1,1,1,1,1]
-            ]
-        ];
 
         let currentStage = 0;
         let gravity = { x: 0, y: 0 };
         let isMoving = false;
-        let ball = { 
-            x: tileSize * 1.5, 
-            y: tileSize * 1.5, 
-            vx: 0, 
-            vy: 0, 
-            radius: tileSize * 0.22 // 当たり判定をさらに快適に
-        };
+        let ball = { x: 0, y: 0, vx: 0, vy: 0, radius: tileSize * 0.22 };
+        let fireworks = [];
+
+        const levels = [
+            [[1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,1],[1,0,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,1],[1,0,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,2,1],[1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1]],
+            [[1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,3,0,0,0,1],[1,0,1,1,0,1,1,1,0,1],[1,0,1,0,0,0,0,1,0,1],[1,0,1,0,1,1,0,1,0,1],[1,0,0,0,1,2,0,0,0,1],[1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1]],
+            [[1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,1],[1,0,1,1,1,1,1,1,0,1],[1,0,1,2,0,0,0,1,0,1],[1,0,1,1,1,1,0,1,0,1],[1,0,0,0,3,0,0,1,0,1],[1,0,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1]]
+        ];
+
+        function startGame() {
+            currentStage = parseInt(document.getElementById('stage-select').value);
+            document.getElementById('menu').classList.add('hidden');
+            initStage();
+        }
+
+        function initStage() {
+            document.getElementById('status').innerText = `STAGE ${currentStage + 1}`;
+            resetBall();
+            fireworks = [];
+        }
+
+        function resetBall() {
+            ball.x = tileSize * 1.5; ball.y = tileSize * 1.5;
+            ball.vx = 0; ball.vy = 0; gravity = { x: 0, y: 0 }; isMoving = false;
+        }
+
+        function backToMenu() {
+            document.getElementById('clear-screen').classList.add('hidden');
+            document.getElementById('menu').classList.remove('hidden');
+        }
+
+        function nextLevel() {
+            document.getElementById('clear-screen').classList.add('hidden');
+            currentStage = (currentStage + 1) % levels.length;
+            initStage();
+        }
 
         function update() {
             if (isMoving) {
-                ball.vx += gravity.x;
-                ball.vy += gravity.y;
-                ball.x += ball.vx;
-                ball.y += ball.vy;
+                ball.vx += gravity.x; ball.vy += gravity.y;
+                ball.x += ball.vx; ball.y += ball.vy;
             }
-
-            // 停止判定の強化
             if (isMoving && Math.abs(ball.vx) < 0.1 && Math.abs(ball.vy) < 0.1) {
-                isMoving = false;
-                gravity = { x: 0, y: 0 };
-                ball.vx = 0;
-                ball.vy = 0;
-                document.getElementById('move-status').innerText = "READY";
-                document.getElementById('move-status').style.color = "#0969da";
+                isMoving = false; gravity = {x:0, y:0}; ball.vx = 0; ball.vy = 0;
             }
-
             checkCollision();
+            updateFireworks();
             draw();
             requestAnimationFrame(update);
         }
 
         function checkCollision() {
-            let gx = Math.floor(ball.x / tileSize);
-            let gy = Math.floor(ball.y / tileSize);
-
+            let gx = Math.floor(ball.x / tileSize), gy = Math.floor(ball.y / tileSize);
             if (gy < 0 || gy >= gridCount || gx < 0 || gx >= gridCount) return;
-
-            const currentTile = levels[currentStage][gy][gx];
-
-            if (currentTile === 1) {
-                // 壁衝突時に位置をマスの中心へ補正
-                ball.x -= ball.vx;
-                ball.y -= ball.vy;
-                ball.vx = 0;
-                ball.vy = 0;
-                isMoving = false;
-            } else if (currentTile === 2) {
-                nextLevel();
-            } else if (currentTile === 3) {
+            const tile = levels[currentStage][gy][gx];
+            if (tile === 1) {
+                ball.x -= ball.vx; ball.y -= ball.vy;
+                isMoving = false; gravity = {x:0, y:0}; ball.vx = 0; ball.vy = 0;
+            } else if (tile === 2) {
+                triggerClear();
+            } else if (tile === 3) {
                 resetBall();
             }
         }
 
-        function nextLevel() {
-            currentStage++;
-            if (currentStage >= levels.length) {
-                alert("ALL REPOS MERGED! YOU ARE A MASTER.");
-                currentStage = 0;
+        function triggerClear() {
+            if (document.getElementById('clear-screen').classList.contains('hidden')) {
+                createFireworks();
+                setTimeout(() => {
+                    document.getElementById('clear-screen').classList.remove('hidden');
+                }, 1000);
             }
-            document.getElementById('status').innerText = `STAGE ${currentStage + 1}`;
-            resetBall();
+            isMoving = false; gravity = {x:0, y:0};
         }
 
-        function resetBall() {
-            ball.x = tileSize * 1.5;
-            ball.y = tileSize * 1.5;
-            ball.vx = 0; ball.vy = 0;
-            gravity = { x: 0, y: 0 };
-            isMoving = false;
-            document.getElementById('move-status').innerText = "READY";
-            document.getElementById('move-status').style.color = "#0969da";
+        // 花火のエフェクト
+        function createFireworks() {
+            for(let i=0; i<30; i++) {
+                fireworks.push({
+                    x: ball.x, y: ball.y,
+                    vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
+                    life: 1.0, color: `hsl(${Math.random()*360}, 70%, 50%)`
+                });
+            }
+        }
+        function updateFireworks() {
+            fireworks.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+                if(p.life <= 0) fireworks.splice(i, 1);
+            });
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const level = levels[currentStage];
-
             for (let y = 0; y < gridCount; y++) {
                 for (let x = 0; x < gridCount; x++) {
-                    let tx = x * tileSize;
-                    let ty = y * tileSize;
-                    if (level[y][x] === 1) {
-                        ctx.fillStyle = "#216e39";
-                        ctx.fillRect(tx + 1, ty + 1, tileSize - 2, tileSize - 2);
-                    } else if (level[y][x] === 2) {
-                        ctx.fillStyle = "#39d353";
-                        ctx.fillRect(tx + 1, ty + 1, tileSize - 2, tileSize - 2);
-                    } else if (level[y][x] === 3) {
-                        ctx.fillStyle = "#cf222e";
-                        ctx.beginPath();
-                        ctx.arc(tx + tileSize/2, ty + tileSize/2, tileSize/4, 0, Math.PI*2);
-                        ctx.fill();
-                    }
+                    let tx = x * tileSize, ty = y * tileSize;
+                    if (level[y][x] === 1) { ctx.fillStyle = "#216e39"; ctx.fillRect(tx+1, ty+1, tileSize-2, tileSize-2); }
+                    else if (level[y][x] === 2) { ctx.fillStyle = "#39d353"; ctx.fillRect(tx+1, ty+1, tileSize-2, tileSize-2); }
+                    else if (level[y][x] === 3) { ctx.fillStyle = "#cf222e"; ctx.beginPath(); ctx.arc(tx+tileSize/2, ty+tileSize/2, tileSize/4, 0, Math.PI*2); ctx.fill(); }
                 }
             }
-            ctx.fillStyle = '#24292f';
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-            ctx.fill();
+            // 花火
+            fireworks.forEach(p => {
+                ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 4, 4);
+            });
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#24292f'; ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2); ctx.fill();
         }
 
         let tsX, tsY;
-        window.addEventListener('touchstart', e => {
-            tsX = e.touches[0].clientX;
-            tsY = e.touches[0].clientY;
-        }, { passive: false });
-
+        window.addEventListener('touchstart', e => { tsX = e.touches[0].clientX; tsY = e.touches[0].clientY; }, { passive: false });
         window.addEventListener('touchend', e => {
-            if (isMoving) return; 
-
-            let dx = e.changedTouches[0].clientX - tsX;
-            let dy = e.changedTouches[0].clientY - tsY;
-
+            if (isMoving || !document.getElementById('clear-screen').classList.contains('hidden')) return;
+            let dx = e.changedTouches[0].clientX - tsX, dy = e.changedTouches[0].clientY - tsY;
             if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
-
             isMoving = true;
-            document.getElementById('move-status').innerText = "MOVING...";
-            document.getElementById('move-status').style.color = "#cf222e";
-
-            if (Math.abs(dx) > Math.abs(dy)) {
-                gravity = { x: dx > 0 ? 0.9 : -0.9, y: 0 };
-            } else {
-                gravity = { x: 0, y: dy > 0 ? 0.9 : -0.9 };
-            }
+            if (Math.abs(dx) > Math.abs(dy)) gravity = { x: dx > 0 ? 0.9 : -0.9, y: 0 };
+            else gravity = { x: 0, y: dy > 0 ? 0.9 : -0.9 };
         }, { passive: false });
 
         update();
