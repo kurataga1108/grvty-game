@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GitHub GRVTY - Contribution Puzzle</title>
+    <title>GitHub GRVTY - Fix</title>
     <style>
         :root {
             --bg-color: #ffffff;
-            --wall-color: #216e39; /* 濃い緑（GitHubの草） */
-            --ball-color: #24292f; /* GitHubロゴの黒 */
-            --goal-color: #39d353; /* 明るい緑 */
-            --spike-color: #cf222e; /* 警告の赤 */
+            --wall-color: #216e39;
+            --ball-color: #24292f;
+            --goal-color: #39d353;
+            --spike-color: #cf222e;
             --text-color: #24292f;
         }
         body { 
@@ -26,25 +26,17 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
         }
         canvas { 
-            background: #ebedf0; /* 薄いグレーの背景 */
+            background: #ebedf0; 
             border: 1px solid #d0d7de; 
             border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
             touch-action: none; 
         }
-        #ui { 
-            margin-bottom: 16px; 
-            text-align: center; 
-        }
-        .stage-label {
-            font-size: 1.5rem;
-            font-weight: 600;
-        }
+        #ui { margin-bottom: 16px; text-align: center; }
+        .stage-label { font-size: 1.5rem; font-weight: 600; }
         .instructions {
             margin-top: 16px;
             font-size: 0.9rem;
             color: #57606a;
-            line-height: 1.5;
             text-align: center;
         }
     </style>
@@ -58,9 +50,8 @@
     <canvas id="gameCanvas"></canvas>
 
     <div class="instructions">
-        Swipe to Commit (Move)<br>
-        <span style="color: var(--goal-color); font-weight: bold;">Green = Goal</span> / 
-        <span style="color: var(--spike-color); font-weight: bold;">Red = Bug</span>
+        Think before you swipe!<br>
+        <span id="move-status" style="font-weight: bold; color: #0969da;">READY</span>
     </div>
 
     <script>
@@ -74,66 +65,65 @@
         const gridCount = 10; 
         const tileSize = screenSize / gridCount;
 
-        // ステージデータ (0:空間, 1:壁, 2:ゴール, 3:トゲ)
+        // 確実にクリア可能なマップ構成
         const levels = [
-            // Stage 1: ウォームアップ（詰まらない配置）
+            // Stage 1: 基本ルート
             [
                 [1,1,1,1,1,1,1,1,1,1],
                 [1,0,0,0,0,0,0,0,0,1],
                 [1,0,1,1,1,1,1,1,0,1],
                 [1,0,1,0,0,0,0,0,0,1],
-                [1,0,1,0,1,1,1,1,1,1],
-                [1,0,0,0,3,0,0,0,0,1],
+                [1,0,1,0,1,1,1,1,3,1],
+                [1,0,0,0,0,0,0,0,0,1],
                 [1,1,1,1,1,1,1,1,0,1],
-                [1,2,0,0,0,0,0,0,0,1],
+                [1,2,0,0,0,3,0,0,0,1],
                 [1,1,1,1,1,1,1,1,1,1],
                 [1,1,1,1,1,1,1,1,1,1]
             ],
-            // Stage 2: 少し複雑なルート
+            // Stage 2: ぐるっと回る
             [
                 [1,1,1,1,1,1,1,1,1,1],
-                [1,0,0,0,0,3,0,0,0,1],
-                [1,0,1,1,0,1,1,1,0,1],
-                [1,0,1,0,0,0,0,1,0,1],
-                [1,0,1,3,1,1,0,1,3,1],
-                [1,0,0,0,1,2,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,1],
+                [1,0,1,1,1,1,1,1,0,1],
+                [1,0,1,2,0,0,0,1,0,1],
+                [1,0,1,1,1,1,0,1,0,1],
+                [1,0,0,0,3,0,0,1,0,1],
                 [1,1,1,0,1,1,1,1,0,1],
                 [1,0,0,0,0,0,0,0,0,1],
-                [1,1,1,1,1,1,1,1,1,1],
-                [1,1,1,1,1,1,1,1,1,1]
-            ],
-            // Stage 3: 慎重なスワイプが必要
-            [
-                [1,1,1,1,1,1,1,1,1,1],
-                [1,0,0,0,1,0,0,0,0,1],
-                [1,3,1,0,1,0,1,1,0,1],
-                [1,0,1,0,0,0,1,0,0,1],
-                [1,0,1,1,1,3,1,0,1,1],
-                [1,0,0,0,0,0,0,0,0,1],
-                [1,1,1,3,1,1,1,1,0,1],
-                [1,2,0,0,0,0,3,0,0,1],
                 [1,1,1,1,1,1,1,1,1,1],
                 [1,1,1,1,1,1,1,1,1,1]
             ]
         ];
 
         let currentStage = 0;
-        let gravity = { x: 0, y: 0.6 };
+        let gravity = { x: 0, y: 0 };
+        let isMoving = false;
         let ball = { 
             x: tileSize * 1.5, 
             y: tileSize * 1.5, 
             vx: 0, 
             vy: 0, 
-            radius: tileSize * 0.25 // 少し小さくして通りやすくした
+            radius: tileSize * 0.25 
         };
-
-        let tsX, tsY;
 
         function update() {
             ball.vx += gravity.x;
             ball.vy += gravity.y;
             ball.x += ball.vx;
             ball.y += ball.vy;
+
+            // 動いているかどうかの判定
+            if (Math.abs(ball.vx) < 0.1 && Math.abs(ball.vy) < 0.1) {
+                if (isMoving) {
+                    isMoving = false;
+                    document.getElementById('move-status').innerText = "READY";
+                    document.getElementById('move-status').style.color = "#0969da";
+                }
+            } else {
+                isMoving = true;
+                document.getElementById('move-status').innerText = "MOVING...";
+                document.getElementById('move-status').style.color = "#cf222e";
+            }
 
             checkCollision();
             draw();
@@ -146,14 +136,14 @@
 
             if (gy < 0 || gy >= gridCount || gx < 0 || gx >= gridCount) return;
 
-            const level = levels[currentStage];
-            const currentTile = level[gy][gx];
+            const currentTile = levels[currentStage][gy][gx];
 
             if (currentTile === 1) {
                 ball.x -= ball.vx;
                 ball.y -= ball.vy;
                 ball.vx = 0;
                 ball.vy = 0;
+                gravity = { x: 0, y: 0 }; // 壁に当たったら重力停止
             } else if (currentTile === 2) {
                 nextLevel();
             } else if (currentTile === 3) {
@@ -164,7 +154,7 @@
         function nextLevel() {
             currentStage++;
             if (currentStage >= levels.length) {
-                alert("ALL CONTRIBUTIONS MERGED!");
+                alert("ALL STAGES CLEAR!");
                 currentStage = 0;
             }
             document.getElementById('status').innerText = `STAGE ${currentStage + 1}`;
@@ -174,9 +164,9 @@
         function resetBall() {
             ball.x = tileSize * 1.5;
             ball.y = tileSize * 1.5;
-            ball.vx = 0;
-            ball.vy = 0;
-            gravity = { x: 0, y: 0.6 };
+            ball.vx = 0; ball.vy = 0;
+            gravity = { x: 0, y: 0 };
+            isMoving = false;
         }
 
         function draw() {
@@ -187,44 +177,44 @@
                 for (let x = 0; x < gridCount; x++) {
                     let tx = x * tileSize;
                     let ty = y * tileSize;
-
                     if (level[y][x] === 1) {
-                        ctx.fillStyle = "#216e39"; // 壁（草）
+                        ctx.fillStyle = "#216e39";
                         ctx.fillRect(tx + 1, ty + 1, tileSize - 2, tileSize - 2);
                     } else if (level[y][x] === 2) {
-                        ctx.fillStyle = "#39d353"; // ゴール
+                        ctx.fillStyle = "#39d353";
                         ctx.fillRect(tx + 1, ty + 1, tileSize - 2, tileSize - 2);
                     } else if (level[y][x] === 3) {
-                        ctx.fillStyle = "#cf222e"; // バグ（トゲ）
+                        ctx.fillStyle = "#cf222e";
                         ctx.beginPath();
                         ctx.arc(tx + tileSize/2, ty + tileSize/2, tileSize/4, 0, Math.PI*2);
                         ctx.fill();
                     }
                 }
             }
-
-            // ボールの描画（GitHubロゴ風の黒）
             ctx.fillStyle = '#24292f';
             ctx.beginPath();
             ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
             ctx.fill();
         }
 
+        let tsX, tsY;
         window.addEventListener('touchstart', e => {
             tsX = e.touches[0].clientX;
             tsY = e.touches[0].clientY;
         }, { passive: false });
 
         window.addEventListener('touchend', e => {
+            if (isMoving) return; // 動いている間はスワイプ無効
+
             let dx = e.changedTouches[0].clientX - tsX;
             let dy = e.changedTouches[0].clientY - tsY;
 
             if (Math.abs(dx) < 15 && Math.abs(dy) < 15) return;
 
             if (Math.abs(dx) > Math.abs(dy)) {
-                gravity = { x: dx > 0 ? 0.7 : -0.7, y: 0 };
+                gravity = { x: dx > 0 ? 0.8 : -0.8, y: 0 };
             } else {
-                gravity = { x: 0, y: dy > 0 ? 0.7 : -0.7 };
+                gravity = { x: 0, y: dy > 0 ? 0.8 : -0.8 };
             }
         }, { passive: false });
 
