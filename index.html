@@ -3,24 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PUYO MERGE - Visual Edition</title>
+    <title>PUYO MERGE v1.2.0</title>
     <style>
         :root { --bg: #f6f8fa; --text: #24292f; }
         body { margin: 0; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: var(--text); }
         #menu, #game-over { position: absolute; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; text-align: center; }
         .hidden { display: none !important; }
-        canvas { background: #fff; border: 4px solid #d0d7de; border-radius: 8px; touch-action: none; }
-        button { padding: 12px 24px; font-size: 1.1rem; border-radius: 6px; border: none; margin: 8px; cursor: pointer; background: #216e39; color: white; font-weight: bold; }
+        canvas { background: #fff; border: 4px solid #d0d7de; border-radius: 12px; touch-action: none; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        button { padding: 12px 28px; font-size: 1.1rem; border-radius: 8px; border: none; margin: 8px; cursor: pointer; background: #216e39; color: white; font-weight: bold; }
         #stats { width: 280px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; font-weight: bold; }
+        .version { position: absolute; bottom: 10px; right: 10px; font-size: 0.8rem; color: #888; }
         .info-row { display: flex; justify-content: space-between; }
     </style>
 </head>
 <body>
 
     <div id="menu">
-        <h1 style="color:#216e39; font-size: 2.5rem;">PUYO MERGE</h1>
-        <p>連鎖でバブルを弾けさせよう！</p>
+        <h1 style="color:#216e39; font-size: 2.5rem; margin-bottom: 0;">PUYO MERGE</h1>
+        <p>バブルが弾ける爽快パズル</p>
         <button onclick="startGame()">START GAME</button>
+        <div class="version">v1.2.0 - Visual & Bug Fix</div>
     </div>
 
     <div id="game-over" class="hidden">
@@ -33,11 +35,11 @@
     <div id="stats">
         <div class="info-row">
             <span>Score: <span id="score">0</span></span>
-            <span>Lv: <span id="color-count">4</span> colors</span>
+            <span>Lv: <span id="color-count">4</span>色</span>
         </div>
         <div class="info-row">
             <span>Cleared: <span id="cleared-count">0</span></span>
-            <span id="chain-msg" style="color:#0969da; opacity:0;">1 Chain!</span>
+            <span id="chain-msg" style="color:#0969da; opacity:0; font-style: italic;">1 Chain!</span>
         </div>
     </div>
 
@@ -62,7 +64,7 @@
 
         let board = [], currentPuyo = null, score = 0, totalCleared = 0, isProcessing = false;
         let particles = [];
-        let explodingBricks = []; // 現在消去演出中の座標
+        let explodingBricks = []; 
 
         function initBoard() {
             board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
@@ -108,7 +110,7 @@
             initBoard();
             currentPuyo = new PuyoPair();
             isProcessing = false;
-            gameLoop();
+            requestAnimationFrame(gameLoop);
         }
 
         function canMove(nx, ny, nRot) {
@@ -121,7 +123,7 @@
         }
 
         async function handleDrop() {
-            if (isProcessing) return;
+            if (isProcessing || !currentPuyo) return;
             if (canMove(currentPuyo.x, currentPuyo.y + 1, currentPuyo.rot)) {
                 currentPuyo.y++;
             } else {
@@ -143,7 +145,7 @@
             while (true) {
                 let dropped = false;
                 while (applyGravity()) { dropped = true; }
-                if (dropped) await new Promise(r => setTimeout(r, 150));
+                if (dropped) await new Promise(r => setTimeout(r, 100));
                 
                 const matches = findMatches();
                 if (matches.length === 0) break;
@@ -152,11 +154,11 @@
                 totalCleared += matches.length;
                 score += matches.length * 10 * chain;
                 
-                // キャー！顔の演出用
+                // 表情を「キャー！」に変える
                 explodingBricks = matches;
-                await new Promise(r => setTimeout(r, 300));
+                await new Promise(r => setTimeout(r, 400));
                 
-                // 弾ける演出
+                // 弾ける
                 matches.forEach(p => {
                     createPopEffect(p.x, p.y, board[p.y][p.x]);
                     board[p.y][p.x] = null;
@@ -170,14 +172,14 @@
 
         function createPopEffect(gx, gy, colorIdx) {
             const color = ALL_COLORS[colorIdx].main;
-            for (let i = 0; i < 8; i++) {
+            for (let i = 0; i < 12; i++) {
                 particles.push({
                     x: gx * TILE + TILE / 2,
                     y: gy * TILE + TILE / 2,
-                    vx: (Math.random() - 0.5) * 6,
-                    vy: (Math.random() - 0.5) * 6,
-                    radius: Math.random() * 6 + 2,
-                    life: 1,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.8) * 8, // やや上に飛ぶように
+                    radius: Math.random() * 8 + 4,
+                    life: 1.0,
                     color: color
                 });
             }
@@ -226,38 +228,46 @@
             const r = TILE * 0.45;
             const c = ALL_COLORS[colorIdx];
             
+            // 本体
             ctx.fillStyle = c.main;
             ctx.beginPath();
-            ctx.roundRect(x * TILE + 2, y * TILE + 2, TILE - 4, TILE - 4, 10);
+            ctx.roundRect(x * TILE + 2, y * TILE + 2, TILE - 4, TILE - 4, 12);
             ctx.fill();
 
             if (isExploding) {
-                // 「キャー！」な目 (＞ ＜)
-                ctx.strokeStyle = "white"; ctx.lineWidth = 3; ctx.lineCap = "round";
+                // キャー！顔 (＞ ＜) の描画
+                ctx.strokeStyle = "rgba(255,255,255,0.9)";
+                ctx.lineWidth = 4;
+                ctx.lineCap = "round";
+                ctx.lineJoin = "round";
                 // 左目
-                ctx.beginPath(); ctx.moveTo(cx - 10, cy - 8); ctx.lineTo(cx - 4, cy - 4); ctx.lineTo(cx - 10, cy); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx - 12, cy - 8); ctx.lineTo(cx - 6, cy - 4); ctx.lineTo(cx - 12, cy); ctx.stroke();
                 // 右目
-                ctx.beginPath(); ctx.moveTo(cx + 10, cy - 8); ctx.lineTo(cx + 4, cy - 4); ctx.lineTo(cx + 10, cy); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx + 12, cy - 8); ctx.lineTo(cx + 6, cy - 4); ctx.lineTo(cx + 12, cy); ctx.stroke();
             } else {
                 // 通常の目
                 ctx.fillStyle = "white";
-                ctx.beginPath(); ctx.arc(cx - 6, cy - 4, 5, 0, Math.PI*2); ctx.fill();
-                ctx.beginPath(); ctx.arc(cx + 6, cy - 4, 5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx - 7, cy - 5, 6, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 7, cy - 5, 6, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = "black";
-                ctx.beginPath(); ctx.arc(cx - 6, cy - 4, 2, 0, Math.PI*2); ctx.fill();
-                ctx.beginPath(); ctx.arc(cx + 6, cy - 4, 2, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx - 7, cy - 4, 2.5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 7, cy - 4, 2.5, 0, Math.PI*2); ctx.fill();
             }
         }
 
         function updateParticles() {
-            particles.forEach((p, i) => {
-                p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx; p.y += p.vy;
+                p.vy += 0.1; // 重力で少し落とす
+                p.life -= 0.02;
                 if (p.life <= 0) particles.splice(i, 1);
-            });
+            }
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // 盤面
             for (let y = 0; y < ROWS; y++) {
                 for (let x = 0; x < COLS; x++) {
                     if (board[y][x] !== null) {
@@ -266,13 +276,21 @@
                     }
                 }
             }
+            // 操作中
             if (currentPuyo) {
                 currentPuyo.getPos().forEach(p => drawPuyo(p.x, p.y, p.c));
             }
-            // パーティクル描画
+            // 弾けるバブル
             particles.forEach(p => {
-                ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+                ctx.globalAlpha = p.life;
+                ctx.strokeStyle = p.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius * (1.2 - p.life), 0, Math.PI*2);
+                ctx.stroke();
+                // 中心に光点
+                ctx.fillStyle = "white";
+                ctx.beginPath(); ctx.arc(p.x - p.radius/3, p.y - p.radius/3, p.radius/4, 0, Math.PI*2); ctx.fill();
             });
             ctx.globalAlpha = 1;
         }
@@ -295,8 +313,7 @@
             if (e.key === 'ArrowRight' && canMove(currentPuyo.x+1, currentPuyo.y, currentPuyo.rot)) currentPuyo.x++;
             if (e.key === 'ArrowDown') handleDrop();
             if (e.key === 'z') {
-                let nextRot = (currentPuyo.rot + 1) % 4;
-                if (canMove(currentPuyo.x, currentPuyo.y, nextRot)) currentPuyo.rot = nextRot;
+                let nRot = (currentPuyo.rot + 1) % 4; if (canMove(currentPuyo.x, currentPuyo.y, nRot)) currentPuyo.rot = nRot;
             }
         });
 
@@ -305,12 +322,12 @@
         canvas.addEventListener('touchend', e => {
             if (!currentPuyo || isProcessing) return;
             let dx = e.changedTouches[0].clientX - tsX, dy = e.changedTouches[0].clientY - tsY;
-            if (Math.abs(dx) < 15 && Math.abs(dy) < 15) {
+            if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
                 let nRot = (currentPuyo.rot + 1) % 4; if (canMove(currentPuyo.x, currentPuyo.y, nRot)) currentPuyo.rot = nRot;
             } else if (Math.abs(dx) > Math.abs(dy)) {
-                if (dx > 20 && canMove(currentPuyo.x+1, currentPuyo.y, currentPuyo.rot)) currentPuyo.x++;
-                else if (dx < -20 && canMove(currentPuyo.x-1, currentPuyo.y, currentPuyo.rot)) currentPuyo.x--;
-            } else if (dy > 20) handleDrop();
+                if (dx > 30 && canMove(currentPuyo.x+1, currentPuyo.y, currentPuyo.rot)) currentPuyo.x++;
+                else if (dx < -30 && canMove(currentPuyo.x-1, currentPuyo.y, currentPuyo.rot)) currentPuyo.x--;
+            } else if (dy > 30) handleDrop();
         });
 
         let lastDrop = 0;
